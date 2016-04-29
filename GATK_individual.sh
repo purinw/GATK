@@ -152,6 +152,7 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -known ${indel_1} \
 -known ${indel_2} \
 -R ${ref_genome} \
+-L ${regions_bed} \
 -I ${out_dir}/${sample_name}/BAM/${sample_name}_deduplicated.bam \
 -dt NONE \
 -nt ${gatk_num_threads} \
@@ -193,6 +194,7 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -knownSites ${indel_1} \
 -knownSites ${indel_2} \
 -knownSites ${DBSNP} \
+-L ${regions_bed} \
 -I ${out_dir}/${sample_name}/BAM/${sample_name}_realigned.bam \
 -nct ${gatk_num_cpu_threads} \
 -o ${out_dir}/${sample_name}/BQSR/${sample_name}_perform_bqsr.table \
@@ -208,6 +210,7 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -knownSites ${indel_1} \
 -knownSites ${indel_2} \
 -knownSites ${DBSNP} \
+-L ${regions_bed} \
 -I ${out_dir}/${sample_name}/BAM/${sample_name}_realigned.bam \
 -nct ${gatk_num_cpu_threads} \
 -BQSR ${out_dir}/${sample_name}/BQSR/${sample_name}_perform_bqsr.table \
@@ -271,7 +274,7 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 --variant_index_type LINEAR \
 --variant_index_parameter 128000 \
 --genotyping_mode DISCOVERY \
--L ${regions_bed}
+-L ${regions_bed} \
 -stand_emit_conf 30 \
 -stand_call_conf 30 \
 -A DepthPerSampleHC \
