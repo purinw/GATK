@@ -8,7 +8,7 @@
 ##
 ##How to run:
 ##i>	Change all the directories and files within Step0 of this script accordingly.
-##ii>	Run the command 'bash /path/to/GATK_individual_one_sample.sh sample_name'
+##ii>	Run the command 'bash /path/to/GATK_individual.sh [options] sample_name'
 ##-------------
 
 
@@ -22,12 +22,13 @@
 ##-------------
 ##Step0-1: Directories
 ##-------------
+project_dir=/mnt/data2/home2/purinw/SUDS-2
+ref_dir=/home/bhoom/data/hg19/gatk_bundle
 bwa_dir=/home/bhoom/bin/bwa-0.7.5a
 picard_dir=/home/bhoom/bin/picard-tools-1.119
 gatk_dir=/home/bhoom/bin/gatk3.3-0
-fastq_dir=/mnt/data2/home2/purinw/WES/RawData
-ref_dir=/home/bhoom/data/hg19/gatk_bundle
-out_dir=/mnt/data2/home2/purinw/WES/Output
+fastq_dir=${project_dir}/RawData
+out_dir=${project_dir}/Output
 
 ##-------------
 ##Step0-2: References
@@ -36,6 +37,7 @@ ref_genome=${ref_dir}/ucsc.hg19.fasta
 indel_1=${ref_dir}/Mills_and_1000G_gold_standard.indels.hg19.sites.vcf
 indel_2=${ref_dir}/1000G_phase1.indels.hg19.sites.vcf
 DBSNP=${ref_dir}/dbsnp_138.hg19.vcf
+exon_bed=/mnt/data2/home2/purinw/WES/bed/exon_hg19.bed
 
 ##-------------
 ##Step0-3: Other Parametres
@@ -43,12 +45,78 @@ DBSNP=${ref_dir}/dbsnp_138.hg19.vcf
 java_mem=30g
 
 ##-------------
-##Step0-4: Sample Name
+##Step0-4: Input Arguments
 ##-------------
-sample_name=$1
+seq_type='GENOME'
+while test $# -gt 0; do
+        case "$1" in
+                -h|--help)
+                        echo "Usage: bash /path/to/GATK_individual.sh [options] sample_name"
+                        echo "This script performs the entire variant-calling process upon one sample, following the Genome Analysis Toolkit (GATK)'s pipeline."
+                        echo ""
+                        echo "Options:"
+                        echo "-h, --help				display this help and exit"
+                        echo "-e, --exome				call only exonic variants, drastically accelerating the Call Haplotype and the Genotype GVCF processes"
+                        exit 0
+                        ;;
+                -e|--exome)
+                        shift
+						seq_type='EXOME'
+						bed_argument='-L '${exon_bed}
+                        shift
+                        ;;
+				*)
+						sample_name=$1
+						shift
+						;;
+		esac
+done
 
 ##-------------
-##Step0-5: Output Folders Creation
+##Step0-5: Sample Verification
+##-------------
+if [ ! -e ${fastq_dir}/${sample_name}_1.fastq.gz ] ; then
+		echo 'Invalid SAMPLE NAME: '${sample_name}'. Terminated.'
+		echo
+		exit 1
+fi
+
+##-------------
+##Step0-6: Summarisation
+##-------------
+echo
+echo '---------------------------------------'
+echo 'INDIVIDUAL VARIANT CALLING PROCESS'
+echo 'SAMPLE NAME =			'${sample_name}
+echo 'SEQUENCED DATA =		'${seq_type}
+echo '---------------------------------------'
+echo
+
+##-------------
+##Step0-7: User's Confirmation Prompt
+##-------------
+while true; do
+    read -p "Are all the input arguments correct? (Y/N): " confirm
+    case ${confirm} in
+        Y|y)
+				echo "Confirmed. Initiating..."
+				echo
+				break
+				;;
+        N|n)
+				echo "Terminated."
+				echo
+				exit 1
+				;;
+        * )
+				echo "Please enter Y or N."
+				echo
+				;;
+    esac
+done
+
+##-------------
+##Step0-8: Output Folders Creation
 ##-------------
 mkdir -p ${out_dir}
 mkdir -p ${out_dir}/${sample_name} ; mkdir -p ${out_dir}/${sample_name}/{Script,LOG,TEMP,SAM,BAM,BQSR,GVCF,VCF,QC,QC/FILTERED_ON_BAIT,Report}
@@ -67,6 +135,7 @@ ${bwa_dir}/bwa mem -t 12 -R "@RG\tID:DM_${sample_name}\tSM:${sample_name}\tPL:Il
 ${fastq_dir}/${sample_name}_1.fastq.gz ${fastq_dir}/${sample_name}_2.fastq.gz > ${out_dir}/${sample_name}/SAM/${sample_name}_aligned.sam
 
 EOL
+
 
 
 ##-------------
@@ -207,17 +276,8 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -plots ${out_dir}/${sample_name}/Report/${sample_name}_bqsr.pdf \
 -log ${out_dir}/${sample_name}/LOG/06-3_${sample_name}_plot_bqsr.log ;
 
-EOL
-
-
-
 ##-------------
-##Step7: Print Reads
-##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/07_${sample_name}_print_reads.sh
-#!/bin/bash
-##-------------
-##Step7: Print Reads
+##Step6-4: Print Reads
 ##-------------
 java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -T PrintReads \
@@ -229,16 +289,16 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -EOQ \
 -nct 8 \
 -o ${out_dir}/${sample_name}/BAM/${sample_name}_GATK.bam \
--log ${out_dir}/${sample_name}/LOG/07_${sample_name}_final_bam.log
+-log ${out_dir}/${sample_name}/LOG/06-4_${sample_name}_final_bam.log
 
 EOL
 
 
 
 ##-------------
-##Step8: Call Haplotype
+##Step7: Call Haplotype
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/08_${sample_name}_call_haplotype.sh
+cat <<EOL > ${out_dir}/${sample_name}/Script/07_${sample_name}_call_haplotype.sh
 #!/bin/bash
 ##-------------
 ##Step8: Call Haplotype
@@ -250,6 +310,7 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 --emitRefConfidence GVCF \
 --variant_index_type LINEAR \
 --variant_index_parameter 128000 \
+${bed_argument} \
 -A DepthPerSampleHC \
 -A ClippingRankSumTest \
 -A MappingQualityRankSumTest \
@@ -262,19 +323,19 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -pairHMM VECTOR_LOGLESS_CACHING \
 -nct 3 \
 -o ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.gvcf \
--log ${out_dir}/${sample_name}/LOG/08_${sample_name}_haplotype_caller.log
+-log ${out_dir}/${sample_name}/LOG/07_${sample_name}_haplotype_caller.log
 
 EOL
 
 
 
 ##-------------
-##Step09: Genotype GVCFs
+##Step08: Genotype GVCF
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/09_${sample_name}_genotype_gvcf.sh
+cat <<EOL > ${out_dir}/${sample_name}/Script/08_${sample_name}_genotype_gvcf.sh
 #!/bin/bash
 ##-------------
-##Step09: Genotype GVCFs
+##Step09: Genotype GVCF
 ##-------------
 java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -T GenotypeGVCFs \
@@ -282,17 +343,18 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 --variant ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.gvcf \
 --disable_auto_index_creation_and_locking_when_reading_rods \
 -nt 1 \
+${bed_argument} \
 -o ${out_dir}/${sample_name}/VCF/${sample_name}_RAW.vcf \
--log ${out_dir}/${sample_name}/LOG/09_${sample_name}_genotype_gvcf.log
+-log ${out_dir}/${sample_name}/LOG/08_${sample_name}_genotype_gvcf.log
 
 EOL
 
 
 
 ##-------------
-##Step10: SNV Quality Control
+##Step09: SNV Quality Control
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/10_${sample_name}_SNV_quality_control.sh
+cat <<EOL > ${out_dir}/${sample_name}/Script/09_${sample_name}_SNV_quality_control.sh
 #!/bin/bash
 ##-------------
 ##Step10-1-1: Extract SNPs
@@ -306,10 +368,10 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 --excludeFiltered \
 -nt 1 \
 -o  ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV.vcf \
--log ${out_dir}/${sample_name}/LOG/10-1-1_${sample_name}_QC_select_snv.log
+-log ${out_dir}/${sample_name}/LOG/09-1-1_${sample_name}_QC_select_snv.log
 
 ##-------------
-##Step10-1-2: Extract Indels
+##Step09-1-2: Extract Indels
 ##-------------
 java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -T SelectVariants \
@@ -323,10 +385,10 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 --excludeFiltered \
 -nt 1 \
 -o  ${out_dir}/${sample_name}/QC/${sample_name}_RAW_INDEL.vcf \
--log ${out_dir}/${sample_name}/LOG/10-1-2_${sample_name}_QC_select_INDEL.log
+-log ${out_dir}/${sample_name}/LOG/09-1-2_${sample_name}_QC_select_INDEL.log
 
 ##-------------
-##Step10-2-1: Annotate SNPs
+##Step09-2-1: Annotate SNPs
 ##-------------
 java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -T VariantAnnotator \
@@ -340,10 +402,10 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -dt NONE \
 -nt 1 \
 -o  ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV_ANNOTATED.vcf \
--log ${out_dir}/${sample_name}/LOG/10-2-1_${sample_name}_QC_snv_annotation.log
+-log ${out_dir}/${sample_name}/LOG/09-2-1_${sample_name}_QC_snv_annotation.log
 
 ##-------------
-##Step10-3-1: Filter SNPs
+##Step09-3-1: Filter SNPs
 ##-------------
 java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -T VariantFiltration \
@@ -364,10 +426,10 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 --filterName 'DP' \
 --logging_level ERROR \
 -o ${out_dir}/${sample_name}/QC/${sample_name}_FILTERED_SNV.vcf \
--log ${out_dir}/${sample_name}/LOG/10-3-1_${sample_name}_QC_filter_snv.log
+-log ${out_dir}/${sample_name}/LOG/09-3-1_${sample_name}_QC_filter_snv.log
 
 ##-------------
-##Step10-4-1: Clean SNPs
+##Step09-4-1: Clean SNPs
 ##-------------
 java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -T SelectVariants \
@@ -377,10 +439,10 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 --excludeFiltered \
 -nt 1 \
 -o  ${out_dir}/${sample_name}/QC/FILTERED_ON_BAIT/${sample_name}_CLEAN_SNV.vcf \
--log ${out_dir}/${sample_name}/LOG/10-4-1_${sample_name}_QC_clean_snv.log
+-log ${out_dir}/${sample_name}/LOG/09-4-1_${sample_name}_QC_clean_snv.log
 
 ##-------------
-##Step10-5: Combine SNVs + Indels
+##Step09-5: Combine SNVs + Indels
 ##-------------
 java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 -T CombineVariants \
@@ -390,7 +452,7 @@ java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
 --disable_auto_index_creation_and_locking_when_reading_rods \
 --genotypemergeoption UNSORTED \
 -o ${out_dir}/${sample_name}/QC/FILTERED_ON_BAIT/${sample_name}_CLEAN_SNV+INDEL.vcf \
--log ${out_dir}/${sample_name}/LOG/10-5_${sample_name}_QC_combine_variants.log
+-log ${out_dir}/${sample_name}/LOG/09-5_${sample_name}_QC_combine_variants.log
 
 EOL
 
@@ -417,15 +479,14 @@ fi
 
 bash ${out_dir}/${sample_name}/Script/05_${sample_name}_realign_indels.sh
 bash ${out_dir}/${sample_name}/Script/06_${sample_name}_recalibrate_base.sh
-bash ${out_dir}/${sample_name}/Script/07_${sample_name}_print_reads.sh
 
 if [[ -e ${out_dir}/${sample_name}/BAM/${sample_name}_GATK.bam ]]; then
   rm ${out_dir}/${sample_name}/BAM/${sample_name}_{deduplicated,sorted,realigned}.{bam,bai}
 fi
 
-bash ${out_dir}/${sample_name}/Script/08_${sample_name}_call_haplotype.sh
-bash ${out_dir}/${sample_name}/Script/09_${sample_name}_genotype_gvcf.sh
-bash ${out_dir}/${sample_name}/Script/10_${sample_name}_SNV_quality_control.sh
+bash ${out_dir}/${sample_name}/Script/07_${sample_name}_call_haplotype.sh
+bash ${out_dir}/${sample_name}/Script/08_${sample_name}_genotype_gvcf.sh
+bash ${out_dir}/${sample_name}/Script/09_${sample_name}_SNV_quality_control.sh
 
 EOL
 
