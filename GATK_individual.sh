@@ -60,7 +60,6 @@ while test $# -gt 0; do
                         exit 0
                         ;;
                 -e|--exome)
-                        shift
 						seq_type='EXOME'
 						bed_argument='-L '${exon_bed}
                         shift
@@ -119,14 +118,14 @@ done
 ##Step0-8: Output Folders Creation
 ##-------------
 mkdir -p ${out_dir}
-mkdir -p ${out_dir}/${sample_name} ; mkdir -p ${out_dir}/${sample_name}/{Script,LOG,TEMP,SAM,BAM,BQSR,GVCF,VCF,QC,QC/FILTERED_ON_BAIT,Report}
+mkdir -p ${out_dir}/${sample_name} ; mkdir -p ${out_dir}/${sample_name}/{Scripts,LOG,TEMP,SAM,BAM,BQSR,GVCF,VCF,QC,QC/FILTERED_ON_BAIT,Report}
 
 
 
 ##-------------
 ##Step1: Align
 ##-------------
-cat << EOL > ${out_dir}/${sample_name}/Script/01_${sample_name}_align.sh
+cat << EOL > ${out_dir}/${sample_name}/Scripts/01_${sample_name}_align.sh
 #!/bin/bash
 ##-------------
 ##Step1: Align
@@ -141,7 +140,7 @@ EOL
 ##-------------
 ##Step2: Sort
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/02_${sample_name}_sort.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/02_${sample_name}_sort.sh
 #!/bin/bash
 ##-------------
 ##Step2: Sort
@@ -159,7 +158,7 @@ EOL
 ##-------------
 ##Step3: Deduplicate
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/03_${sample_name}_deduplicate.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/03_${sample_name}_deduplicate.sh
 #!/bin/bash
 ##-------------
 ##Step3: Deduplicate
@@ -177,7 +176,7 @@ EOL
 ##-------------
 ##Step4: Build Index
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/04_${sample_name}_build_index.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/04_${sample_name}_build_index.sh
 #!/bin/bash
 ##-------------
 ##Step4: Build Index
@@ -193,7 +192,7 @@ EOL
 ##-------------
 ##Step5: Indel Realignment
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/05_${sample_name}_realign_indels.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/05_${sample_name}_realign_indels.sh
 #!/bin/bash
 ##-------------
 ##Step5-1: Create Aligner Target
@@ -232,7 +231,7 @@ EOL
 ##-------------
 ##Step6: Base Quality Score Recalibration
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/06_${sample_name}_recalibrate_base.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/06_${sample_name}_recalibrate_base.sh
 #!/bin/bash
 ##-------------
 ##Step6-1: Perform Base Recalibration
@@ -298,7 +297,7 @@ EOL
 ##-------------
 ##Step7: Call Haplotype
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/07_${sample_name}_call_haplotype.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/07_${sample_name}_call_haplotype.sh
 #!/bin/bash
 ##-------------
 ##Step8: Call Haplotype
@@ -332,7 +331,7 @@ EOL
 ##-------------
 ##Step08: Genotype GVCF
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/08_${sample_name}_genotype_gvcf.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/08_${sample_name}_genotype_gvcf.sh
 #!/bin/bash
 ##-------------
 ##Step09: Genotype GVCF
@@ -354,7 +353,7 @@ EOL
 ##-------------
 ##Step09: SNV Quality Control
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/09_${sample_name}_SNV_quality_control.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/09_${sample_name}_SNV_quality_control.sh
 #!/bin/bash
 ##-------------
 ##Step10-1-1: Extract SNPs
@@ -463,30 +462,30 @@ EOL
 ##-------------
 ##MASTER SCRIPT
 ##-------------
-cat <<EOL > ${out_dir}/${sample_name}/Script/${sample_name}_GATK.sh
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/${sample_name}_GATK.sh
 #!/bin/bash
 ##-------------
 ##${sample_name}'s Vaiant Calling
 ##-------------
-(bash ${out_dir}/${sample_name}/Script/01_${sample_name}_align.sh) 2>&1 | tee ${out_dir}/${sample_name}/LOG/01_${sample_name}_alignment.log
-(bash ${out_dir}/${sample_name}/Script/02_${sample_name}_sort.sh) 2>&1 | tee ${out_dir}/${sample_name}/LOG/02_${sample_name}_sort.log
-(bash ${out_dir}/${sample_name}/Script/03_${sample_name}_deduplicate.sh) 2>&1 | tee ${out_dir}/${sample_name}/LOG/03_${sample_name}_deduplication.log
-(bash ${out_dir}/${sample_name}/Script/04_${sample_name}_build_index.sh) 2>&1 | tee ${out_dir}/${sample_name}/LOG/04_${sample_name}_building_index.log
+(bash ${out_dir}/${sample_name}/Scripts/01_${sample_name}_align.sh) 2>&1 | tee ${out_dir}/${sample_name}/LOG/01_${sample_name}_alignment.log
+(bash ${out_dir}/${sample_name}/Scripts/02_${sample_name}_sort.sh) 2>&1 | tee ${out_dir}/${sample_name}/LOG/02_${sample_name}_sort.log
+(bash ${out_dir}/${sample_name}/Scripts/03_${sample_name}_deduplicate.sh) 2>&1 | tee ${out_dir}/${sample_name}/LOG/03_${sample_name}_deduplication.log
+(bash ${out_dir}/${sample_name}/Scripts/04_${sample_name}_build_index.sh) 2>&1 | tee ${out_dir}/${sample_name}/LOG/04_${sample_name}_building_index.log
 
 if [[ -e ${out_dir}/${sample_name}/BAM/${sample_name}_deduplicated.bam ]]; then
   rm ${out_dir}/${sample_name}/SAM/${sample_name}_aligned.sam
 fi
 
-bash ${out_dir}/${sample_name}/Script/05_${sample_name}_realign_indels.sh
-bash ${out_dir}/${sample_name}/Script/06_${sample_name}_recalibrate_base.sh
+bash ${out_dir}/${sample_name}/Scripts/05_${sample_name}_realign_indels.sh
+bash ${out_dir}/${sample_name}/Scripts/06_${sample_name}_recalibrate_base.sh
 
 if [[ -e ${out_dir}/${sample_name}/BAM/${sample_name}_GATK.bam ]]; then
   rm ${out_dir}/${sample_name}/BAM/${sample_name}_{deduplicated,sorted,realigned}.{bam,bai}
 fi
 
-bash ${out_dir}/${sample_name}/Script/07_${sample_name}_call_haplotype.sh
-bash ${out_dir}/${sample_name}/Script/08_${sample_name}_genotype_gvcf.sh
-bash ${out_dir}/${sample_name}/Script/09_${sample_name}_SNV_quality_control.sh
+bash ${out_dir}/${sample_name}/Scripts/07_${sample_name}_call_haplotype.sh
+bash ${out_dir}/${sample_name}/Scripts/08_${sample_name}_genotype_gvcf.sh
+bash ${out_dir}/${sample_name}/Scripts/09_${sample_name}_SNV_quality_control.sh
 
 EOL
 
@@ -497,4 +496,4 @@ EOL
 ##-------------
 ##EXECUTION
 ##-------------
-bash ${out_dir}/${sample_name}/Script/${sample_name}_GATK.sh
+bash ${out_dir}/${sample_name}/Scripts/${sample_name}_GATK.sh
