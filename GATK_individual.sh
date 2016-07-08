@@ -37,7 +37,7 @@ ref_genome=${ref_dir}/ucsc.hg19.fasta
 indel_1=${ref_dir}/Mills_and_1000G_gold_standard.indels.hg19.sites.vcf
 indel_2=${ref_dir}/1000G_phase1.indels.hg19.sites.vcf
 DBSNP=${ref_dir}/dbsnp_138.hg19.vcf
-exon_bed=/mnt/data2/home2/purinw/WES/bed/exon_hg19.bed
+exon_bed=/mnt/data2/home2/purinw/bed/exon_hg19.bed
 
 ##-------------
 ##Step0-3: Other Parametres
@@ -51,13 +51,13 @@ while test $# -gt 0 ; do
         case "$1" in
                 -h|--help)
 						echo ""
-                        echo "Usage: bash /path/to/GATK_individual.sh [options] sample_name"
+                        echo "Usage: bash $0 [options] sample_name"
                         echo ""
                         echo "This script performs the entire variant-calling process upon one sample, following the Genome Analysis Toolkit (GATK)'s pipeline."
                         echo ""
                         echo "Options:"
                         echo "-h, --help				display this help and exit"
-						echo "-v, --version				display version of this script"
+						echo "-v, --version				display version of this script and exit"
 						echo "-XS, --no-summary			suppress the command summary before execution"
 						echo "-XP, --no-prompt			suppress the user prompt before execution, only when the command summary is displayed"
 						echo "-XX, --no-exec				suppress automatic execution, generating only script files"
@@ -69,9 +69,10 @@ while test $# -gt 0 ; do
 						echo ""
 						echo "GATK_individual.sh"
                         echo ""
-						echo "Updated JUN 2016"
+						echo "Created MAR 2016"
+						echo "Updated JUL 2016"
 						echo "by"
-						echo "PURIN WANGKIRATIKANT"
+						echo "PURIN WANGKIRATIKANT [purin.wan@mahidol.ac.th]"
 						echo "Clinical Database Centre, Institute of Personalised Genomics and Gene Therapy (IPGG)"
 						echo "Faculty of Medicine Siriraj Hospital, Mahidol University, Bangkok, Thailand"
 						echo ""
@@ -87,6 +88,10 @@ while test $# -gt 0 ; do
 						;;
 				-XX|--no-exec)
 						no_exec=1
+						shift
+						;;
+				-XG|--no-genotyping)
+						no_geno=1
 						shift
 						;;
                 -e|--exome)
@@ -369,7 +374,6 @@ ${bed_argument} \
 -A AlleleBalance \
 -A QualByDepth \
 -pairHMM VECTOR_LOGLESS_CACHING \
--nct 3 \
 -o ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.g.vcf \
 -log ${out_dir}/${sample_name}/LOG/7_${sample_name}_haplotype_caller.log
 
@@ -377,132 +381,132 @@ EOL
 
 
 
-# ##-------------
-# ##Step8: Genotype
-# ##-------------
-# cat <<EOL > ${out_dir}/${sample_name}/Scripts/8_${sample_name}_genotype_gvcf.sh
-# #!/bin/bash
-# ##-------------
-# ##Step8: Genotype
-# ##-------------
-# java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
-# -T GenotypeGVCFs \
-# -R ${ref_genome} \
-# --variant ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.g.vcf \
-# --disable_auto_index_creation_and_locking_when_reading_rods \
-# -nt 1 \
-# ${bed_argument} \
-# -o ${out_dir}/${sample_name}/VCF/${sample_name}_RAW.vcf \
-# -log ${out_dir}/${sample_name}/LOG/8_${sample_name}_genotype_gvcf.log
+##-------------
+##Step8: Genotype
+##-------------
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/8_${sample_name}_genotype_gvcf.sh
+#!/bin/bash
+##-------------
+##Step8: Genotype
+##-------------
+java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
+-T GenotypeGVCFs \
+-R ${ref_genome} \
+--variant ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.g.vcf \
+--disable_auto_index_creation_and_locking_when_reading_rods \
+-nt 1 \
+${bed_argument} \
+-o ${out_dir}/${sample_name}/VCF/${sample_name}_RAW.vcf \
+-log ${out_dir}/${sample_name}/LOG/8_${sample_name}_genotype_gvcf.log
 
-# EOL
+EOL
 
 
 
-# ##-------------
-# ##Step9: SNV Quality Control
-# ##-------------
-# cat <<EOL > ${out_dir}/${sample_name}/Scripts/9_${sample_name}_SNV_quality_control.sh
-# #!/bin/bash
-# ##-------------
-# ##Step9-1-1: Extract SNPs
-# ##-------------
-# java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
-# -T SelectVariants \
-# -R ${ref_genome} \
-# --variant ${out_dir}/${sample_name}/VCF/${sample_name}_RAW.vcf \
-# --disable_auto_index_creation_and_locking_when_reading_rods \
-# -selectType SNP \
-# --excludeFiltered \
-# -nt 1 \
-# -o  ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV.vcf \
-# -log ${out_dir}/${sample_name}/LOG/9-1-1_${sample_name}_QC_select_snv.log
+##-------------
+##Step9: SNV Quality Control
+##-------------
+cat <<EOL > ${out_dir}/${sample_name}/Scripts/9_${sample_name}_SNV_quality_control.sh
+#!/bin/bash
+##-------------
+##Step9-1-1: Extract SNPs
+##-------------
+java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
+-T SelectVariants \
+-R ${ref_genome} \
+--variant ${out_dir}/${sample_name}/VCF/${sample_name}_RAW.vcf \
+--disable_auto_index_creation_and_locking_when_reading_rods \
+-selectType SNP \
+--excludeFiltered \
+-nt 1 \
+-o  ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV.vcf \
+-log ${out_dir}/${sample_name}/LOG/9-1-1_${sample_name}_QC_select_snv.log
 
-# ##-------------
-# ##Step9-1-2: Extract Indels
-# ##-------------
-# java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
-# -T SelectVariants \
-# -R ${ref_genome} \
-# --variant ${out_dir}/${sample_name}/VCF/${sample_name}_RAW.vcf \
-# --disable_auto_index_creation_and_locking_when_reading_rods \
-# -selectType INDEL \
-# -selectType MNP \
-# -selectType MIXED \
-# -selectType SYMBOLIC \
-# --excludeFiltered \
-# -nt 1 \
-# -o ${out_dir}/${sample_name}/QC/${sample_name}_RAW_INDEL.vcf \
-# -log ${out_dir}/${sample_name}/LOG/9-1-2_${sample_name}_QC_select_INDEL.log
+##-------------
+##Step9-1-2: Extract Indels
+##-------------
+java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
+-T SelectVariants \
+-R ${ref_genome} \
+--variant ${out_dir}/${sample_name}/VCF/${sample_name}_RAW.vcf \
+--disable_auto_index_creation_and_locking_when_reading_rods \
+-selectType INDEL \
+-selectType MNP \
+-selectType MIXED \
+-selectType SYMBOLIC \
+--excludeFiltered \
+-nt 1 \
+-o ${out_dir}/${sample_name}/QC/${sample_name}_RAW_INDEL.vcf \
+-log ${out_dir}/${sample_name}/LOG/9-1-2_${sample_name}_QC_select_INDEL.log
 
-# ##-------------
-# ##Step9-2-1: Annotate SNPs
-# ##-------------
-# java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
-# -T VariantAnnotator \
-# -R ${ref_genome} \
-# --variant ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV.vcf \
-# --disable_auto_index_creation_and_locking_when_reading_rods \
-# --dbsnp ${DBSNP} \
-# -L ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV.vcf \
-# -A GCContent \
-# -A VariantType \
-# -dt NONE \
-# -nt 1 \
-# -o ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV_ANNOTATED.vcf \
-# -log ${out_dir}/${sample_name}/LOG/9-2-1_${sample_name}_QC_snv_annotation.log
+##-------------
+##Step9-2-1: Annotate SNPs
+##-------------
+java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
+-T VariantAnnotator \
+-R ${ref_genome} \
+--variant ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV.vcf \
+--disable_auto_index_creation_and_locking_when_reading_rods \
+--dbsnp ${DBSNP} \
+-L ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV.vcf \
+-A GCContent \
+-A VariantType \
+-dt NONE \
+-nt 1 \
+-o ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV_ANNOTATED.vcf \
+-log ${out_dir}/${sample_name}/LOG/9-2-1_${sample_name}_QC_snv_annotation.log
 
-# ##-------------
-# ##Step9-3-1: Filter SNPs
-# ##-------------
-# java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
-# -T VariantFiltration \
-# -R ${ref_genome} \
-# --variant ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV_ANNOTATED.vcf \
-# --disable_auto_index_creation_and_locking_when_reading_rods \
-# --filterExpression 'QD < 2.0' \
-# --filterName 'QD' \
-# --filterExpression 'MQ < 30.0' \
-# --filterName 'MQ' \
-# --filterExpression 'FS > 40.0' \
-# --filterName 'FS' \
-# --filterExpression 'MQRankSum < -12.5' \
-# --filterName 'MQRankSum' \
-# --filterExpression 'ReadPosRankSum < -8.0' \
-# --filterName 'ReadPosRankSum' \
-# --filterExpression 'DP < 8.0' \
-# --filterName 'DP' \
-# --logging_level ERROR \
-# -o ${out_dir}/${sample_name}/QC/${sample_name}_FILTERED_SNV.vcf \
-# -log ${out_dir}/${sample_name}/LOG/9-3-1_${sample_name}_QC_filter_snv.log
+##-------------
+##Step9-3-1: Filter SNPs
+##-------------
+java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
+-T VariantFiltration \
+-R ${ref_genome} \
+--variant ${out_dir}/${sample_name}/QC/${sample_name}_RAW_SNV_ANNOTATED.vcf \
+--disable_auto_index_creation_and_locking_when_reading_rods \
+--filterExpression 'QD < 2.0' \
+--filterName 'QD' \
+--filterExpression 'MQ < 30.0' \
+--filterName 'MQ' \
+--filterExpression 'FS > 40.0' \
+--filterName 'FS' \
+--filterExpression 'MQRankSum < -12.5' \
+--filterName 'MQRankSum' \
+--filterExpression 'ReadPosRankSum < -8.0' \
+--filterName 'ReadPosRankSum' \
+--filterExpression 'DP < 8.0' \
+--filterName 'DP' \
+--logging_level ERROR \
+-o ${out_dir}/${sample_name}/QC/${sample_name}_FILTERED_SNV.vcf \
+-log ${out_dir}/${sample_name}/LOG/9-3-1_${sample_name}_QC_filter_snv.log
 
-# ##-------------
-# ##Step9-4-1: Clean SNPs
-# ##-------------
-# java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
-# -T SelectVariants \
-# -R ${ref_genome} \
-# --variant ${out_dir}/${sample_name}/QC/${sample_name}_FILTERED_SNV.vcf \
-# --disable_auto_index_creation_and_locking_when_reading_rods \
-# --excludeFiltered \
-# -nt 1 \
-# -o  ${out_dir}/${sample_name}/QC/FILTERED/${sample_name}_CLEAN_SNV.vcf \
-# -log ${out_dir}/${sample_name}/LOG/9-4-1_${sample_name}_QC_clean_snv.log
+##-------------
+##Step9-4-1: Clean SNPs
+##-------------
+java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
+-T SelectVariants \
+-R ${ref_genome} \
+--variant ${out_dir}/${sample_name}/QC/${sample_name}_FILTERED_SNV.vcf \
+--disable_auto_index_creation_and_locking_when_reading_rods \
+--excludeFiltered \
+-nt 1 \
+-o  ${out_dir}/${sample_name}/QC/FILTERED/${sample_name}_CLEAN_SNV.vcf \
+-log ${out_dir}/${sample_name}/LOG/9-4-1_${sample_name}_QC_clean_snv.log
 
-# ##-------------
-# ##Step9-5: Combine SNVs + Indels
-# ##-------------
-# java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
-# -T CombineVariants \
-# -R ${ref_genome} \
-# --variant ${out_dir}/${sample_name}/QC/FILTERED/${sample_name}_CLEAN_SNV.vcf \
-# --variant ${out_dir}/${sample_name}/QC/${sample_name}_RAW_INDEL.vcf \
-# --disable_auto_index_creation_and_locking_when_reading_rods \
-# --genotypemergeoption UNSORTED \
-# -o ${out_dir}/${sample_name}/QC/FILTERED/${sample_name}_CLEAN_SNV+INDEL.vcf \
-# -log ${out_dir}/${sample_name}/LOG/9-5_${sample_name}_QC_combine_variants.log
+##-------------
+##Step9-5: Combine SNVs + Indels
+##-------------
+java -Xmx${java_mem} -jar ${gatk_dir}/GenomeAnalysisTK.jar \
+-T CombineVariants \
+-R ${ref_genome} \
+--variant ${out_dir}/${sample_name}/QC/FILTERED/${sample_name}_CLEAN_SNV.vcf \
+--variant ${out_dir}/${sample_name}/QC/${sample_name}_RAW_INDEL.vcf \
+--disable_auto_index_creation_and_locking_when_reading_rods \
+--genotypemergeoption UNSORTED \
+-o ${out_dir}/${sample_name}/QC/FILTERED/${sample_name}_CLEAN_SNV+INDEL.vcf \
+-log ${out_dir}/${sample_name}/LOG/9-5_${sample_name}_QC_combine_variants.log
 
-# EOL
+EOL
 
 
 
@@ -533,8 +537,11 @@ if [[ -e ${out_dir}/${sample_name}/BAM/${sample_name}_GATK.bam ]] ; then
 fi
 
 bash ${out_dir}/${sample_name}/Scripts/7_${sample_name}_call_haplotype.sh
-# bash ${out_dir}/${sample_name}/Scripts/8_${sample_name}_genotype.sh
-# bash ${out_dir}/${sample_name}/Scripts/9_${sample_name}_SNV_quality_control.sh
+
+if [[ ${no_geno} != 1 ]] ; then
+		bash ${out_dir}/${sample_name}/Scripts/8_${sample_name}_genotype.sh
+		bash ${out_dir}/${sample_name}/Scripts/9_${sample_name}_SNV_quality_control.sh
+fi
 
 EOL
 

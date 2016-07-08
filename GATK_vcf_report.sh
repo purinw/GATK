@@ -4,12 +4,12 @@
 ##Clinical Database Centre, Institute of Personalised Genomics and Gene Therapy (IPGG)
 ##Faculty of Medicine Siriraj Hospital, Mahidol University, Bangkok, Thailand
 ##-------------
-##This script extracts variants within a VCF file that are related to genes specified by given gene files or given gene names.
+##This script creats a tabular report of the variants within a VCF file.
 ##
 ##How to run:
 ##i>	Change all the directories and files within Step0 of this script accordingly.
 ##ii>	Check if the annotation process for the input file has been accomplished.
-##iii>	Run the command 'bash /path/to/GATK_filter_gene.sh [options] input_file'
+##iii>	Run the command 'bash /path/to/GATK_vcf_report.sh [options] input_file'
 ##-------------
 
 
@@ -24,6 +24,9 @@
 ##Step0-1: Directories
 ##-------------
 snpeff_dir=/mnt/data2/home2/purinw/snpEff
+script_dir=/mnt/data2/home2/purinw/GATK_Scripts
+gene_filtration_script=${script_dir}/GATK_filter_gene.sh
+r_report_script=${script_dir}/internal.GATK_vcf_report.R
 
 ##-------------
 ##Step0-2: Other Parametres
@@ -39,7 +42,7 @@ while test $# -gt 0 ; do
                         echo ""
 						echo "Usage: bash $0 [options] input_file"
                         echo ""
-                        echo "This script extracts variants within a VCF file that are related to genes specified by given gene files or given gene names."
+                        echo "This script creats a tabular report of the variants within a VCF file."
                         echo ""
                         echo "Options:"
                         echo "-h, --help				display this help and exit"
@@ -47,16 +50,20 @@ while test $# -gt 0 ; do
 						echo "-XS, --no-summary			suppress the command summary before execution"
 						echo "-XP, --no-prompt			suppress the user prompt before execution, only when the command summary is displayed"
 						# echo "-O, --out-dir	OUT_DIR			specify output directory, the same as input's by default"
-                        echo "-o, --out-file		OUT_FILE	specify output file, by default the input file's name with the suffix \"filtered\" appended"
-						echo "-r, --replace				instruct the output filtered file to replace the input file, treating OUT_FILE as the temporary file if both activated"
+                        echo "-p, --prefix		PREFIX		specify output prefix to be used, by default the input file's name with the suffix \"report\" appended"
 						echo "-G, --gene-file		GENE_FILE	specify gene file containing gene names to be used in the filtration"
-						echo "-g, --gene-name		GENE_NAME	specify gene names to be used in filtration"
+						echo "-f, --filter				include only variants within the specified gene files"
+						echo "-w, --wide				output only the wide report, with all the samples' genotype in each row"
+						echo "-l, --long				output only the long report, with only one sample's genotype in each row"
+						echo "-ph, --phenotype			include \"PHENOTYPE\" field in the report(s), retrieved from each gene file's name"
+						echo "-t, --tier				include \"TIER\" field in the long report, calculated by using clinical evidences, genotype, and background frequencies"
+						echo "-a, --all				activate all -f, -w, -l, -ph, and -t options"
 						echo ""
                         exit 0
                         ;;
 				-v|--version)
 						echo ""
-						echo "GATK_filter_gene.sh"
+						echo "GATK_vcf_report.sh"
                         echo ""
 						echo "Created MAR 2016"
 						echo "Updated JUL 2016"
@@ -75,16 +82,12 @@ while test $# -gt 0 ; do
 						no_prompt=1
 						shift
 						;;
-                -o|--out-file)
+                -p|--prefix)
                         shift
-						out_file=$1
+						prefix=$1
 						out_dir=$( echo $1 | sed 's/\/[^\/]*$//')/.
                         shift
                         ;;
-				-r|--replace)
-						replacement=YES
-						shift
-						;;
                 # -O|--out-dir)
                         # shift
 						# out_dir=$( echo $1 | sed 's/\/$//' )
@@ -95,9 +98,32 @@ while test $# -gt 0 ; do
 						gene_file_list+=( $1 )
 						shift
 						;;
-				-g|--gene-name)
+				-f|--filter)
+						filtration=YES
 						shift
-						gene_list+=( $1 )
+						;;
+				-w|--wide)
+						wide_flag=1
+						shift
+						;;
+				-l|--long)
+						long_flag=1
+						shift
+						;;
+				-ph|--phenotype)
+						phenotype=YES
+						shift
+						;;
+				-t|--tier)
+						tier=YES
+						shift
+						;;
+				-a|--all)
+						wide_flag=1
+						long_flag=1
+						filtration=YES
+						phenotype=YES
+						tier=YES
 						shift
 						;;
 				*)
@@ -113,11 +139,27 @@ done
 if [[ ! -v out_dir ]] ; then
 		out_dir=$( pwd )
 fi
-if [[ ! -v out_file ]] ; then
-		out_file=$( echo ${in_file} | sed 's/.vcf$/_filtered.vcf/' )
+if [[ ! -v prefix ]] ; then
+		prefix=$( echo ${in_file} | sed 's/.vcf$//' )
 fi
-if [[ ! -v replacement ]] ; then
-		replacement=NO
+if [[ ! -v filtration ]] ; then
+		filtration=NO
+fi
+if [[ -v wide_flag || ! -v long_flag ]] ; then
+		wide=YES
+		else
+		wide=NO
+fi
+if [[ -v long_flag || ! -v wide_flag ]] ; then
+		long=YES
+		else
+		long=NO
+fi
+if [[ ! -v phenotype ]] ; then
+		phenotype=NO
+fi
+if [[ ! -v tier ]] ; then
+		tier=NO
 fi
 
 ##-------------
@@ -139,21 +181,45 @@ for gene_file in ${gene_file_list[*]} ; do
 				exit 1
 		fi
 done
+if [[ ${filtration} == 'YES' && ${gene_file_list} == '' ]] ; then
+		echo
+		echo 'Invalid INPUT: Filter without gene files'
+		echo 'Terminated.'
+		echo
+		exit 1
+fi
+if [[ ${phenotype} == 'YES' && ${gene_file_list} == '' ]] ; then
+		echo
+		echo 'Invalid INPUT: Phenotype without gene files'
+		echo 'Terminated.'
+		echo
+		exit 1
+fi
+if [[ ${tier} == 'YES' && ${long} == 'NO' ]] ; then
+		echo
+		echo 'Invalid INPUT: Tier without long output'
+		echo 'Terminated.'
+		echo
+		exit 1
+fi
+
 
 ##-------------
-##Step0-6: Summarisation & User's Confirmation Prompt
+##Step0-6: Summarisation
 ##-------------
 if [[ ${no_summary} != 1 ]] ; then
 		echo
 		echo '---------------------------------------'
-		echo 'GENE FILTRATION'
+		echo 'VARIANT TABULAR REPORT'
 		echo 'INPUT FILE =			'${in_file}
-		echo 'OUTPUT FILE =			'${out_file}
-		echo 'REPLACEMENT =			'${replacement}
+		echo 'OUTPUT PREFIX =			'${prefix}
 		echo 'GENE FILE COUNT =		'${#gene_file_list[*]}
 		echo 'GENE FILES =			'${gene_file_list[*]}
-		echo 'GENE NAME COUNT =		'${#gene_list[*]}
-		echo 'GENE NAMES =			'${gene_list[*]}
+		echo 'GENE FILTRATION =		'${filtration}
+		echo 'WIDE OUTPUT REPORT =		'${wide}
+		echo 'LONG OUTPUT REPORT =		'${long}
+		echo 'PHENOTYPE FIELD =		'${phenotype}
+		echo 'TIER FIELD =			'${tier}
 		echo '---------------------------------------'
 		echo
 
@@ -187,34 +253,48 @@ mkdir -p ${out_dir}
 
 
 
-# ##-------------
-# ##Step1: SnpEff Annotation Verificiation
-# ##-------------
-# if [[ $( grep "##INFO=<ID=ANN," ${in_file} | wc -l ) -eq 0 ]] ; then
-		# java -Xmx${java_mem} -jar ${snpeff_dir}/snpEff.jar hg19 ${in_file} > ${out_file}.temp.vcf
-# fi
-
-
 ##-------------
-##Step1: Manipulating Arguments
+##Step1: Gene Filtration
 ##-------------
-for gene_file in ${gene_file_list[*]} ; do
-		gene_list+=($( cat ${gene_file} ))
-done
-gene_argument=$(echo ${gene_list[*]} | sed 's/ /\n/g' | sed "s/\(.*\)/(ANN[*].GENE = '\1')/g" | paste -sd '||')
-
-
-
-##-------------
-##Step2: Gene Filtration
-##-------------
-java -jar ${snpeff_dir}/SnpSift.jar filter "${gene_argument}" ${in_file} > ${out_file}
-
-
-
-##-------------
-##Step3: Replacement
-##-------------
-if [[ ${replacement} == 'YES' ]] ; then
-		mv ${out_file} ${in_file}
+if [[ ${filtration} == 'YES' ]] ; then
+		gene_file_argument="$( echo ${gene_file_list[*]} | sed 's/ /\n/g' | sed 's/^\(.*\)/-G \1 /g' )"
+		bash ${gene_filtration_script} ${in_file} -o ${prefix}_filtered.vcf -XS ${gene_file_argument}
+		in_file=${prefix}_filtered.vcf
 fi
+
+
+
+##-------------
+##Step2: VCF File Reduction
+##-------------
+( grep -v '^##' ${in_file} | sed 's/^#//' ) > ${prefix}.reduced.vcf
+
+
+
+##-------------
+##Step3: Allele Frequency Computation
+##-------------
+vcftools --vcf ${in_file} --counts --out ${prefix}.alleles
+
+
+
+##-------------
+##Step4: Creating Gene-Phenotype File
+##-------------
+(for gene_file in ${gene_file_list[*]} ; do awk '{print $1"\t"FILENAME}' ${gene_file} ; done ) | sed 's/\t\(.*\)\..*/\t\1/g' | sed 's/\t.*\/\(.*\)/\t\1/g' > ${prefix}_gene_pheno.txt
+
+
+
+##-------------
+##Step4: Tabulating Results (Via R)
+##-------------
+Rscript ${r_report_script} ${prefix}.reduced.vcf ${prefix}.alleles.frq.count ${wide} ${long} ${phenotype} ${tier} ${filtration} ${prefix}_gene_pheno.txt
+
+
+
+##-------------
+##Step5: Removal of Temporary Files
+##-------------
+rm ${prefix}.reduced.vcf
+rm ${prefix}.alleles.log
+rm ${prefix}_gene_pheno.txt

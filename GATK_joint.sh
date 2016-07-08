@@ -10,7 +10,7 @@
 ##How to run:
 ##i>	Change all the directories and files within Step0 of this script accordingly.
 ##ii>	Check if the individual GATK process for every sample has been accomplished.
-##iii>	Run the command 'bash /path/to/GATK_joint.sh [options]'
+##iii>	Run the command 'bash /path/to/GATK_joint.sh [options] [sample_name]'
 ##-------------
 
 
@@ -41,7 +41,7 @@ ref_genome=${ref_dir}/ucsc.hg19.fasta
 indel_1=${ref_dir}/Mills_and_1000G_gold_standard.indels.hg19.sites.vcf
 indel_2=${ref_dir}/1000G_phase1.indels.hg19.sites.vcf
 DBSNP=${ref_dir}/dbsnp_138.hg19.vcf
-exon_bed=/mnt/data2/home2/purinw/WES/bed/exon_hg19.bed
+exon_bed=/mnt/data2/home2/purinw/bed/exon_hg19.bed
 
 ##-------------
 ##Step0-3: Other Parametres
@@ -55,17 +55,18 @@ while test $# -gt 0 ; do
         case "$1" in
                 -h|--help)
 				        echo ""
-                        echo "Usage: bash /path/to/GATK_joint.sh [options] [sample_name]"
+                        echo "Usage: bash $0 [options] [sample_name] [sample_name] [...]"
                         echo ""
                         echo "This script performs the entire joint variant-calling process upon all samples, following the Genome Analysis Toolkit (GATK)'s pipeline."
 						echo "If no \"sample_name\" is specified in the command, all the folders in \"out_dir\" are automatically taken as the complete set of samples."
                         echo ""
                         echo "Options:"
                         echo "-h, --help				display this help and exit"
-						echo "-v, --version				display version of this script"
+						echo "-v, --version				display version of this script and exit"
 						echo "-XS, --no-summary			suppress the command summary before execution"
 						echo "-XP, --no-prompt			suppress the user prompt before execution, only when the command summary is displayed"
 						echo "-XX, --no-exec				suppress automatic execution, generating only script files"
+						echo "-x, --exclude		SAMPLE_NAME	exclude SAMPLE_NAME from the (automatically generated) sample list"
                         echo "-e, --exome				call only exonic variants, drastically accelerating the Joint Genotype process"
 						echo "-p, --prefix		PREFIX		specify the batch's name to be used, by default \"COMBINED\""
 						echo "-s, --split				split the final joint file into single-sample files"
@@ -76,9 +77,10 @@ while test $# -gt 0 ; do
 						echo ""
 						echo "GATK_joint.sh"
                         echo ""
-						echo "Updated JUN 2016"
+						echo "Created MAR 2016"
+						echo "Updated JUL 2016"
 						echo "by"
-						echo "PURIN WANGKIRATIKANT"
+						echo "PURIN WANGKIRATIKANT [purin.wan@mahidol.ac.th]"
 						echo "Clinical Database Centre, Institute of Personalised Genomics and Gene Therapy (IPGG)"
 						echo "Faculty of Medicine Siriraj Hospital, Mahidol University, Bangkok, Thailand"
 						echo ""
@@ -94,6 +96,11 @@ while test $# -gt 0 ; do
 						;;
 				-XX|--no-exec)
 						no_exec=1
+						shift
+						;;
+				-x|--exclude)
+						shift
+						exclude_list+=( $1 )
 						shift
 						;;
                 -e|--exome)
@@ -132,15 +139,18 @@ fi
 if [[ ! -v sample_list ]] ; then
 		sample_list=($(ls ${out_dir}))
 fi
+for exclude_name in ${exclude_list[*]} ; do
+		sample_list=(${sample_list[*]/"${exclude_name}"})
+done
 
 ##-------------
 ##Step0-6: Input Verification
 ##-------------
 for sample_name in ${sample_list[*]} ; do
-		if [[ ! -e ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.gvcf ]] ; then
+		if [[ ! -e ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.g.vcf ]] ; then
 				echo
 				echo 'Invalid SAMPLE NAME: '${sample_name}
-				echo ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.gvcf not found.
+				echo ${out_dir}/${sample_name}/GVCF/${sample_name}_GATK.g.vcf not found.
 				echo 'Terminated.'
 				echo
 				exit 1
